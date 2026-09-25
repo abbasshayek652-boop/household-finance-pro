@@ -3,8 +3,23 @@
  * Core sheet helpers for storing app data.
  */
 
+// ===== CONFIGURATION =====
+// Replace this with your Google Sheet ID from the URL:
+// https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit
+const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+
+function getSpreadsheet_() {
+  if (!SPREADSHEET_ID || SPREADSHEET_ID === 'YOUR_SPREADSHEET_ID_HERE') {
+    throw new Error(
+      'SPREADSHEET_ID not configured. Please replace "YOUR_SPREADSHEET_ID_HERE" with your actual Google Sheet ID.\n' +
+      'Find it in your sheet URL: https://docs.google.com/spreadsheets/d/YOUR_ID/edit'
+    );
+  }
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
 function setupDatabase_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheet_();
   const sheets = [
     'Accounts', 'Categories', 'Transactions', 'Budgets', 'SavingsGoals',
     'Recurring', 'Properties', 'Rooms', 'Bookings', 'AuditLog', 'Meta'
@@ -52,13 +67,14 @@ function setupDatabase_() {
 }
 
 function getSheet_(sheetName) {
-  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  return getSpreadsheet_().getSheetByName(sheetName);
 }
 
 function getOrCreateSheet_(sheetName) {
-  let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const ss = getSpreadsheet_();
+  let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
-    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(sheetName);
+    sheet = ss.insertSheet(sheetName);
     const headers = CONFIG.HEADERS[sheetName] || [];
     if (headers.length) {
       sheet.appendRow(headers);
@@ -178,6 +194,9 @@ function loadDatabaseSnapshot_() {
     budgets: readSheet_('Budgets', ['id', 'category_id', 'month', 'amount', 'currency', 'notes', 'archived', 'created_at', 'updated_at']),
     savingsGoals: readSheet_('SavingsGoals', ['id', 'name', 'target_amount', 'current_amount', 'currency', 'deadline', 'notes', 'archived', 'created_at', 'updated_at']),
     recurring: readSheet_('Recurring', ['id', 'name', 'type', 'entity', 'account_id', 'category_id', 'amount', 'currency', 'frequency', 'next_run_date', 'notes', 'archived', 'created_at', 'updated_at']),
+    properties: readSheet_('Properties', ['id', 'name', 'address', 'notes', 'archived', 'created_at', 'updated_at']),
+    rooms: readSheet_('Rooms', ['id', 'property_id', 'name', 'status', 'default_nightly_rate', 'currency', 'notes', 'archived', 'created_at', 'updated_at']),
+    bookings: readSheet_('Bookings', ['id', 'room_id', 'guest', 'check_in', 'check_out', 'amount_received', 'currency', 'status', 'notes', 'created_at', 'updated_at']),
     metadata: getMetadata_()
   };
 }

@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Household Finance Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --primary-light: #3b82f6;
+            --danger: #dc2626;
+            --success: #16a34a;
+            --warning: #ea580c;
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --bg: #ffffff;
+            --bg-secondary: #f3f4f6;
+            --border: #e5e7eb;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 250px;
+            background-color: var(--bg);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 20px 0;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .sidebar-subtitle {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 5px;
+        }
+
+        .nav-section {
+            margin-bottom: 25px;
+        }
+
+        .nav-section-title {
+            padding: 0 20px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            color: var(--text);
+        }
+
+        .nav-item:hover {
+            background-color: var(--bg-secondary);
+            color: var(--primary);
+        }
+
+        .nav-item.active {
+            background-color: var(--bg-secondary);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .nav-icon {
+            font-size: 18px;
+            margin-right: 12px;
+            width: 20px;
+        }
+
+        .divider {
+            height: 1px;
+            background-color: var(--border);
+            margin: 20px 0;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background-color: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e5e7eb;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #b91c1c;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        /* Grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background-color: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background-color: var(--bg);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background-color: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-muted {
+            color: var(--text-light);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="email"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="email"]:focus,
+        input[type="date"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--bg);
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Utilities */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+
+        .spinner {
+            border: 3px solid var(--bg-secondary);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .alert-success {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .alert-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+
+        /* Actions */
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .action-btn:hover {
+            color: var(--primary-dark);
+        }
+
+        .action-btn.danger {
+            color: var(--danger);
+        }
+
+        .action-btn.danger:hover {
+            color: #b91c1c;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 80px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                display: flex;
+                align-items: center;
+                padding: 10px 0;
+            }
+
+            .sidebar-header {
+                margin: 0;
+                padding: 0 20px;
+                border: none;
+            }
+
+            .nav-section {
+                display: flex;
+                margin: 0;
+            }
+
+            .nav-section-title {
+                display: none;
+            }
+
+            .divider {
+                display: none;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">💰 Finance Pro</div>
+                <div class="sidebar-subtitle">Personal & Rental</div>
+            </div>
+
+            <!-- Household Finance -->
+            <div class="nav-section">
+                <div class="nav-section-title">Household Finance</div>
+                <div class="nav-item active" data-section="dashboard">
+                    <span class="nav-icon">🏠</span>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" data-section="ledger">
+                    <span class="nav-icon">📒</span>
+                    <span>Ledger</span>
+                </div>
+                <div class="nav-item" data-section="reports">
+                    <span class="nav-icon">📊</span>
+                    <span>Reports</span>
+                </div>
+                <div class="nav-item" data-section="planning">
+                    <span class="nav-icon">🎯</span>
+                    <span>Planning</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Rental Management -->
+            <div class="nav-section">
+                <div class="nav-section-title">Rental Management</div>
+                <div class="nav-item" data-section="rental-dashboard">
+                    <span class="nav-icon">🏘️</span>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" data-section="properties">
+                    <span class="nav-icon">🏠</span>
+                    <span>Properties</span>
+                </div>
+                <div class="nav-item" data-section="rooms">
+                    <span class="nav-icon">🚪</span>
+                    <span>Rooms</span>
+                </div>
+                <div class="nav-item" data-section="bookings">
+                    <span class="nav-icon">📅</span>
+                    <span>Bookings</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Settings -->
+            <div class="nav-section">
+                <div class="nav-section-title">Management</div>
+                <div class="nav-item" data-section="accounts">
+                    <span class="nav-icon">🏦</span>
+                    <span>Accounts</span>
+                </div>
+                <div class="nav-item" data-section="categories">
+                    <span class="nav-icon">🏷️</span>
+                    <span>Categories</span>
+                </div>
+                <div class="nav-item" data-section="exchange-rates">
+                    <span class="nav-icon">💱</span>
+                    <span>Exchange Rates</span>
+                </div>
+                <div class="nav-item" data-section="audit-log">
+                    <span class="nav-icon">📜</span>
+                    <span>Audit Log</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <div class="header-title" id="pageTitle">Dashboard</div>
+                <div class="header-actions" id="headerActions"></div>
+            </div>
+
+            <div class="content" id="content">
+                <!-- Sections will be dynamically loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle"></div>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Main Application State & Controller
+         */
+        const app = {
+            state: {
+                finance: {},
+                rental: {},
+                metadata: {}
+            },
+            currentSection: 'dashboard',
+
+            init() {
+                this.setupEventListeners();
+                this.loadState();
+            },
+
+            setupEventListeners() {
+                // Navigation
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const section = e.currentTarget.dataset.section;
+                        this.navigateTo(section);
+                    });
+                });
+            },
+
+            async loadState() {
+                try {
+                    const result = await google.script.run.withSuccessHandler(data => {
+                        this.state = data;
+                        this.render();
+                    }).getApplicationState();
+                } catch (error) {
+                    console.error('Failed to load state:', error);
+                    this.showError('Failed to load application data');
+                }
+            },
+
+            navigateTo(section) {
+                this.currentSection = section;
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('active');
+                    if (item.dataset.section === section) {
+                        item.classList.add('active');
+                    }
+                });
+
+                // Update header
+                const sectionNames = {
+                    'dashboard': 'Dashboard',
+                    'ledger': 'Ledger',
+                    'reports': 'Reports',
+                    'planning': 'Planning',
+                    'rental-dashboard': 'Rental Dashboard',
+                    'properties': 'Properties',
+                    'rooms': 'Rooms',
+                    'bookings': 'Bookings',
+                    'accounts': 'Accounts',
+                    'categories': 'Categories',
+                    'exchange-rates': 'Exchange Rates',
+                    'audit-log': 'Audit Log'
+                };
+
+                document.getElementById('pageTitle').textContent = sectionNames[section] || section;
+                document.getElementById('headerActions').innerHTML = this.getHeaderActions(section);
+
+                this.render();
+            },
+
+            getHeaderActions(section) {
+                const actions = {
+                    'dashboard': '<button class="btn btn-primary" onclick="app.openAddTransactionModal()">+ Add Transaction</button>',
+                    'ledger': '<button class="btn btn-primary" onclick="app.openAddTransactionModal()">+ Add Transaction</button>' +
+                             '<button class="btn btn-secondary" onclick="app.openAddTransferModal()">↔ New Transfer</button>',
+                    'planning': '<button class="btn btn-primary" onclick="app.openAddBudgetModal()">+ Add Budget</button>',
+                    'properties': '<button class="btn btn-primary" onclick="app.openAddPropertyModal()">+ Add Property</button>',
+                    'rooms': '<button class="btn btn-primary" onclick="app.openAddRoomModal()">+ Add Room</button>',
+                    'bookings': '<button class="btn btn-primary" onclick="app.openAddBookingModal()">+ Add Booking</button>',
+                    'accounts': '<button class="btn btn-primary" onclick="app.openAddAccountModal()">+ Add Account</button>',
+                    'categories': '<button class="btn btn-primary" onclick="app.openAddCategoryModal()">+ Add Category</button>'
+                };
+                return actions[section] || '';
+            },
+
+            render() {
+                const section = this.currentSection;
+                let html = '';
+
+                switch(section) {
+                    case 'dashboard':
+                        html = this.renderDashboard();
+                        break;
+                    case 'ledger':
+                        html = this.renderLedger();
+                        break;
+                    case 'reports':
+                        html = this.renderReports();
+                        break;
+                    case 'planning':
+                        html = this.renderPlanning();
+                        break;
+                    case 'rental-dashboard':
+                        html = this.renderRentalDashboard();
+                        break;
+                    case 'properties':
+                        html = this.renderProperties();
+                        break;
+                    case 'rooms':
+                        html = this.renderRooms();
+                        break;
+                    case 'bookings':
+                        html = this.renderBookings();
+                        break;
+                    case 'accounts':
+                        html = this.renderAccounts();
+                        break;
+                    case 'categories':
+                        html = this.renderCategories();
+                        break;
+                    case 'exchange-rates':
+                        html = this.renderExchangeRates();
+                        break;
+                    case 'audit-log':
+                        html = this.renderAuditLog();
+                        break;
+                    default:
+                        html = '<p>Section not found</p>';
+                }
+
+                document.getElementById('content').innerHTML = html;
+                this.attachEventListeners();
+            },
+
+            renderDashboard() {
+                const dash = this.state.finance.dashboard || {};
+                const metrics = `
+                    <div class="grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Income</div>
+                            <div class="stat-value" style="color: var(--success);">€${(dash.totalIncome || 0).toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total Expenses</div>
+                            <div class="stat-value" style="color: var(--danger);">��${(dash.totalExpenses || 0).toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Net Balance</div>
+                            <div class="stat-value">€${(dash.netBalance || 0).toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Savings Rate</div>
+                            <div class="stat-value" style="color: var(--primary);">${(dash.savingsRate || 0).toFixed(1)}%</div>
+                        </div>
+                    </div>
+                `;
+
+                return `
+                    <div class="card">
+                        <div class="card-title">Financial Overview</div>
+                        ${metrics}
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Recent Transactions</div>
+                        ${this.renderTransactionTable(dash.recentTransactions || [])}
+                    </div>
+                `;
+            },
+
+            renderLedger() {
+                const transactions = this.state.finance.transactions || [];
+                return `
+                    <div class="card">
+                        <div class="card-title">Transaction Ledger</div>
+                        ${this.renderTransactionTable(transactions)}
+                    </div>
+                `;
+            },
+
+            renderTransactionTable(transactions) {
+                if (!transactions || transactions.length === 0) {
+                    return '<p class="text-muted">No transactions yet</p>';
+                }
+
+                const rows = transactions.map(t => `
+                    <tr>
+                        <td>${t.date || ''}</td>
+                        <td><span class="badge badge-success">${t.type}</span></td>
+                        <td>${t.entity || ''}</td>
+                        <td>${t.category_id || ''}</td>
+                        <td class="text-right">€${(t.amount || 0).toFixed(2)}</td>
+                        <td class="actions">
+                            <button class="action-btn" onclick="app.editTransaction('${t.id}')">Edit</button>
+                            <button class="action-btn danger" onclick="app.deleteTransaction('${t.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Entity</th>
+                                    <th>Category</th>
+                                    <th class="text-right">Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                `;
+            },
+
+            renderReports() {
+                return '<p>Reports section - under development</p>';
+            },
+
+            renderPlanning() {
+                return '<p>Planning section - under development</p>';
+            },
+
+            renderRentalDashboard() {
+                const summary = this.state.rental.summary || {};
+                return `
+                    <div class="grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Bookings</div>
+                            <div class="stat-value">${summary.totalBookings || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total Nights</div>
+                            <div class="stat-value">${summary.totalNights || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Active Rooms</div>
+                            <div class="stat-value">${summary.totalRooms || 0}</div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderProperties() {
+                const properties = this.state.rental.properties || [];
+                if (!properties.length) {
+                    return '<p class="text-muted">No properties yet</p>';
+                }
+
+                const rows = properties.map(p => `
+                    <tr>
+                        <td>${p.name}</td>
+                        <td>${p.address || ''}</td>
+                        <td class="actions">
+                            <button class="action-btn" onclick="app.editProperty('${p.id}')">Edit</button>
+                            <button class="action-btn danger" onclick="app.deleteProperty('${p.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="card">
+                        <div class="card-title">Properties</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Property</th>
+                                        <th>Address</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderRooms() {
+                const rooms = this.state.rental.rooms || [];
+                if (!rooms.length) {
+                    return '<p class="text-muted">No rooms yet</p>';
+                }
+
+                const rows = rooms.map(r => `
+                    <tr>
+                        <td>${r.name}</td>
+                        <td>${r.status || ''}</td>
+                        <td>${r.default_nightly_rate ? '€' + r.default_nightly_rate : '—'}</td>
+                        <td class="actions">
+                            <button class="action-btn" onclick="app.editRoom('${r.id}')">Edit</button>
+                            <button class="action-btn danger" onclick="app.deleteRoom('${r.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="card">
+                        <div class="card-title">Rooms</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Room</th>
+                                        <th>Status</th>
+                                        <th>Rate</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderBookings() {
+                const bookings = this.state.rental.bookings || [];
+                if (!bookings.length) {
+                    return '<p class="text-muted">No bookings yet</p>';
+                }
+
+                const rows = bookings.map(b => `
+                    <tr>
+                        <td>${b.guest || ''}</td>
+                        <td>${b.check_in || ''} to ${b.check_out || ''}</td>
+                        <td>${b.currency}${(b.amount_received || 0).toFixed(2)}</td>
+                        <td><span class="badge badge-success">${b.status || ''}</span></td>
+                        <td class="actions">
+                            <button class="action-btn" onclick="app.editBooking('${b.id}')">Edit</button>
+                            <button class="action-btn danger" onclick="app.deleteBooking('${b.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="card">
+                        <div class="card-title">Bookings</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Guest</th>
+                                        <th>Dates</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderAccounts() {
+                const accounts = this.state.finance.accounts || [];
+                if (!accounts.length) {
+                    return '<p class="text-muted">No accounts yet</p>';
+                }
+
+                const rows = accounts.map(a => `
+                    <tr>
+                        <td>${a.name}</td>
+                        <td>${a.type}</td>
+                        <td>${a.currency}</td>
+                        <td class="text-right">€${(a.opening_balance || 0).toFixed(2)}</td>
+                        <td class="actions">
+                            <button class="action-btn" onclick="app.editAccount('${a.id}')">Edit</button>
+                            <button class="action-btn danger" onclick="app.deleteAccount('${a.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="card">
+                        <div class="card-title">Accounts</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Account</th>
+                                        <th>Type</th>
+                                        <th>Currency</th>
+                                        <th class="text-right">Opening Balance</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderCategories() {
+                const categories = this.state.finance.categories || [];
+                if (!categories.length) {
+                    return '<p class="text-muted">No categories yet</p>';
+                }
+
+                const rows = categories.map(c => `
+                    <tr>
+                        <td>${c.name}</td>
+                        <td>${c.type}</td>
+                        <td class="actions">
+                            <button class="action-btn" onclick="app.editCategory('${c.id}')">Edit</button>
+                            <button class="action-btn danger" onclick="app.deleteCategory('${c.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                return `
+                    <div class="card">
+                        <div class="card-title">Categories</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Type</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            },
+
+            renderExchangeRates() {
+                return '<p>Exchange Rates section - under development</p>';
+            },
+
+            renderAuditLog() {
+                return '<p>Audit Log section - under development</p>';
+            },
+
+            attachEventListeners() {
+                // Placeholder for attaching event listeners to dynamically rendered elements
+            },
+
+            async openAddTransactionModal() {
+                this.openModal('Add Transaction', '<p>Add transaction form - under development</p>', '');
+            },
+
+            async openAddTransferModal() {
+                this.openModal('New Transfer', '<p>Transfer form - under development</p>', '');
+            },
+
+            async openAddBudgetModal() {
+                this.openModal('Add Budget', '<p>Budget form - under development</p>', '');
+            },
+
+            async openAddPropertyModal() {
+                this.openModal('Add Property', '<p>Property form - under development</p>', '');
+            },
+
+            async openAddRoomModal() {
+                this.openModal('Add Room', '<p>Room form - under development</p>', '');
+            },
+
+            async openAddBookingModal() {
+                this.openModal('Add Booking', '<p>Booking form - under development</p>', '');
+            },
+
+            async openAddAccountModal() {
+                this.openModal('Add Account', '<p>Account form - under development</p>', '');
+            },
+
+            async openAddCategoryModal() {
+                this.openModal('Add Category', '<p>Category form - under development</p>', '');
+            },
+
+            editTransaction(id) {
+                this.openModal('Edit Transaction', '<p>Edit transaction form - under development</p>', '');
+            },
+
+            editProperty(id) {
+                this.openModal('Edit Property', '<p>Edit property form - under development</p>', '');
+            },
+
+            editRoom(id) {
+                this.openModal('Edit Room', '<p>Edit room form - under development</p>', '');
+            },
+
+            editBooking(id) {
+                this.openModal('Edit Booking', '<p>Edit booking form - under development</p>', '');
+            },
+
+            editAccount(id) {
+                this.openModal('Edit Account', '<p>Edit account form - under development</p>', '');
+            },
+
+            editCategory(id) {
+                this.openModal('Edit Category', '<p>Edit category form - under development</p>', '');
+            },
+
+            async deleteTransaction(id) {
+                if (confirm('Delete this transaction?')) {
+                    await google.script.run.withSuccessHandler(() => {
+                        this.loadState();
+                    }).API_deleteTransaction(id);
+                }
+            },
+
+            async deleteProperty(id) {
+                if (confirm('Delete this property?')) {
+                    await google.script.run.withSuccessHandler(() => {
+                        this.loadState();
+                    }).API_deleteProperty(id);
+                }
+            },
+
+            async deleteRoom(id) {
+                if (confirm('Delete this room?')) {
+                    await google.script.run.withSuccessHandler(() => {
+                        this.loadState();
+                    }).API_deleteRoom(id);
+                }
+            },
+
+            async deleteBooking(id) {
+                if (confirm('Delete this booking?')) {
+                    await google.script.run.withSuccessHandler(() => {
+                        this.loadState();
+                    }).API_deleteBooking(id);
+                }
+            },
+
+            async deleteAccount(id) {
+                if (confirm('Delete this account?')) {
+                    await google.script.run.withSuccessHandler(() => {
+                        this.loadState();
+                    }).API_deleteAccount(id);
+                }
+            },
+
+            async deleteCategory(id) {
+                if (confirm('Delete this category?')) {
+                    await google.script.run.withSuccessHandler(() => {
+                        this.loadState();
+                    }).API_deleteCategory(id);
+                }
+            },
+
+            openModal(title, body, footer) {
+                document.getElementById('modalTitle').textContent = title;
+                document.getElementById('modalBody').innerHTML = body;
+                document.getElementById('modalFooter').innerHTML = footer;
+                document.getElementById('modal').classList.add('active');
+            },
+
+            showError(message) {
+                console.error(message);
+                alert(message);
+            }
+        };
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        // Initialize app on load
+        window.addEventListener('load', () => {
+            app.init();
+        });
+    </script>
+</body>
+</html>

@@ -321,6 +321,11 @@
             color: #991b1b;
         }
 
+        .badge-info {
+            background-color: #dbeafe;
+            color: #0c4a6e;
+        }
+
         /* Forms */
         .form-group {
             margin-bottom: 16px;
@@ -659,6 +664,7 @@
                 metadata: {}
             },
             currentSection: 'dashboard',
+            editingAccount: null,
 
             init() {
                 this.setupEventListeners();
@@ -792,7 +798,7 @@
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Total Expenses</div>
-                            <div class="stat-value" style="color: var(--danger);">��${(dash.totalExpenses || 0).toFixed(2)}</div>
+                            <div class="stat-value" style="color: var(--danger);">€${(dash.totalExpenses || 0).toFixed(2)}</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Net Balance</div>
@@ -1010,17 +1016,19 @@
             renderAccounts() {
                 const accounts = this.state.finance.accounts || [];
                 if (!accounts.length) {
-                    return '<p class="text-muted">No accounts yet</p>';
+                    return '<p class="text-muted">No accounts yet. Click "+ Add Account" to create one.</p>';
                 }
 
-                const rows = accounts.map(a => `
+                const rows = accounts.filter(a => !a.archived).map(a => `
                     <tr>
-                        <td>${a.name}</td>
-                        <td>${a.type}</td>
+                        <td><strong>${a.name}</strong></td>
+                        <td>${a.owner || '—'}</td>
+                        <td><span class="badge badge-info">${a.type}</span></td>
                         <td>${a.currency}</td>
                         <td class="text-right">€${(a.opening_balance || 0).toFixed(2)}</td>
+                        <td>${a.notes ? '<span title="' + a.notes + '">📝</span>' : '—'}</td>
                         <td class="actions">
-                            <button class="action-btn" onclick="app.editAccount('${a.id}')">Edit</button>
+                            <button class="action-btn" onclick="app.openEditAccountModal('${a.id}')">Edit</button>
                             <button class="action-btn danger" onclick="app.deleteAccount('${a.id}')">Delete</button>
                         </td>
                     </tr>
@@ -1028,15 +1036,17 @@
 
                 return `
                     <div class="card">
-                        <div class="card-title">Accounts</div>
+                        <div class="card-title">Active Accounts</div>
                         <div class="table-container">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Account</th>
+                                        <th>Account Name</th>
+                                        <th>Owner</th>
                                         <th>Type</th>
                                         <th>Currency</th>
                                         <th class="text-right">Opening Balance</th>
+                                        <th>Notes</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -1048,39 +1058,7 @@
             },
 
             renderCategories() {
-                const categories = this.state.finance.categories || [];
-                if (!categories.length) {
-                    return '<p class="text-muted">No categories yet</p>';
-                }
-
-                const rows = categories.map(c => `
-                    <tr>
-                        <td>${c.name}</td>
-                        <td>${c.type}</td>
-                        <td class="actions">
-                            <button class="action-btn" onclick="app.editCategory('${c.id}')">Edit</button>
-                            <button class="action-btn danger" onclick="app.deleteCategory('${c.id}')">Delete</button>
-                        </td>
-                    </tr>
-                `).join('');
-
-                return `
-                    <div class="card">
-                        <div class="card-title">Categories</div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Category</th>
-                                        <th>Type</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${rows}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                `;
+                return '<p>Categories section - under development</p>';
             },
 
             renderExchangeRates() {
@@ -1091,133 +1069,210 @@
                 return '<p>Audit Log section - under development</p>';
             },
 
-            attachEventListeners() {
-                // Placeholder for attaching event listeners to dynamically rendered elements
-            },
+            openAddAccountModal() {
+                this.editingAccount = null;
+                const modalTitle = document.getElementById('modalTitle');
+                const modalBody = document.getElementById('modalBody');
+                const modalFooter = document.getElementById('modalFooter');
 
-            async openAddTransactionModal() {
-                this.openModal('Add Transaction', '<p>Add transaction form - under development</p>', '');
-            },
+                modalTitle.textContent = 'Add New Account';
+                modalBody.innerHTML = `
+                    <form id="accountForm">
+                        <div class="form-group">
+                            <label>Account Name *</label>
+                            <input type="text" id="accountName" placeholder="e.g., Checking Account" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Owner *</label>
+                            <input type="text" id="accountOwner" placeholder="e.g., John Doe" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Account Type *</label>
+                            <select id="accountType" required>
+                                <option value="">Select type...</option>
+                                <option value="Checking">Checking</option>
+                                <option value="Savings">Savings</option>
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="Investment">Investment</option>
+                                <option value="Loan">Loan</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Currency *</label>
+                            <select id="accountCurrency" required>
+                                <option value="">Select currency...</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="GBP">GBP (£)</option>
+                                <option value="JPY">JPY (¥)</option>
+                                <option value="CHF">CHF</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Opening Balance</label>
+                            <input type="number" id="accountBalance" placeholder="0.00" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="accountNotes" placeholder="Additional notes..."></textarea>
+                        </div>
+                    </form>
+                `;
 
-            async openAddTransferModal() {
-                this.openModal('New Transfer', '<p>Transfer form - under development</p>', '');
-            },
+                modalFooter.innerHTML = `
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="app.saveAccount()">Create Account</button>
+                `;
 
-            async openAddBudgetModal() {
-                this.openModal('Add Budget', '<p>Budget form - under development</p>', '');
-            },
-
-            async openAddPropertyModal() {
-                this.openModal('Add Property', '<p>Property form - under development</p>', '');
-            },
-
-            async openAddRoomModal() {
-                this.openModal('Add Room', '<p>Room form - under development</p>', '');
-            },
-
-            async openAddBookingModal() {
-                this.openModal('Add Booking', '<p>Booking form - under development</p>', '');
-            },
-
-            async openAddAccountModal() {
-                this.openModal('Add Account', '<p>Account form - under development</p>', '');
-            },
-
-            async openAddCategoryModal() {
-                this.openModal('Add Category', '<p>Category form - under development</p>', '');
-            },
-
-            editTransaction(id) {
-                this.openModal('Edit Transaction', '<p>Edit transaction form - under development</p>', '');
-            },
-
-            editProperty(id) {
-                this.openModal('Edit Property', '<p>Edit property form - under development</p>', '');
-            },
-
-            editRoom(id) {
-                this.openModal('Edit Room', '<p>Edit room form - under development</p>', '');
-            },
-
-            editBooking(id) {
-                this.openModal('Edit Booking', '<p>Edit booking form - under development</p>', '');
-            },
-
-            editAccount(id) {
-                this.openModal('Edit Account', '<p>Edit account form - under development</p>', '');
-            },
-
-            editCategory(id) {
-                this.openModal('Edit Category', '<p>Edit category form - under development</p>', '');
-            },
-
-            async deleteTransaction(id) {
-                if (confirm('Delete this transaction?')) {
-                    await google.script.run.withSuccessHandler(() => {
-                        this.loadState();
-                    }).API_deleteTransaction(id);
-                }
-            },
-
-            async deleteProperty(id) {
-                if (confirm('Delete this property?')) {
-                    await google.script.run.withSuccessHandler(() => {
-                        this.loadState();
-                    }).API_deleteProperty(id);
-                }
-            },
-
-            async deleteRoom(id) {
-                if (confirm('Delete this room?')) {
-                    await google.script.run.withSuccessHandler(() => {
-                        this.loadState();
-                    }).API_deleteRoom(id);
-                }
-            },
-
-            async deleteBooking(id) {
-                if (confirm('Delete this booking?')) {
-                    await google.script.run.withSuccessHandler(() => {
-                        this.loadState();
-                    }).API_deleteBooking(id);
-                }
-            },
-
-            async deleteAccount(id) {
-                if (confirm('Delete this account?')) {
-                    await google.script.run.withSuccessHandler(() => {
-                        this.loadState();
-                    }).API_deleteAccount(id);
-                }
-            },
-
-            async deleteCategory(id) {
-                if (confirm('Delete this category?')) {
-                    await google.script.run.withSuccessHandler(() => {
-                        this.loadState();
-                    }).API_deleteCategory(id);
-                }
-            },
-
-            openModal(title, body, footer) {
-                document.getElementById('modalTitle').textContent = title;
-                document.getElementById('modalBody').innerHTML = body;
-                document.getElementById('modalFooter').innerHTML = footer;
                 document.getElementById('modal').classList.add('active');
             },
 
-            showError(message) {
-                console.error(message);
+            openEditAccountModal(accountId) {
+                const account = (this.state.finance.accounts || []).find(a => a.id === accountId);
+                if (!account) {
+                    this.showError('Account not found');
+                    return;
+                }
+
+                this.editingAccount = account;
+                const modalTitle = document.getElementById('modalTitle');
+                const modalBody = document.getElementById('modalBody');
+                const modalFooter = document.getElementById('modalFooter');
+
+                modalTitle.textContent = 'Edit Account';
+                modalBody.innerHTML = `
+                    <form id="accountForm">
+                        <div class="form-group">
+                            <label>Account Name *</label>
+                            <input type="text" id="accountName" value="${account.name}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Owner *</label>
+                            <input type="text" id="accountOwner" value="${account.owner || ''}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Account Type *</label>
+                            <select id="accountType" required>
+                                <option value="">Select type...</option>
+                                <option value="Checking" ${account.type === 'Checking' ? 'selected' : ''}>Checking</option>
+                                <option value="Savings" ${account.type === 'Savings' ? 'selected' : ''}>Savings</option>
+                                <option value="Credit Card" ${account.type === 'Credit Card' ? 'selected' : ''}>Credit Card</option>
+                                <option value="Investment" ${account.type === 'Investment' ? 'selected' : ''}>Investment</option>
+                                <option value="Loan" ${account.type === 'Loan' ? 'selected' : ''}>Loan</option>
+                                <option value="Other" ${account.type === 'Other' ? 'selected' : ''}>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Currency *</label>
+                            <select id="accountCurrency" required>
+                                <option value="">Select currency...</option>
+                                <option value="EUR" ${account.currency === 'EUR' ? 'selected' : ''}>EUR (€)</option>
+                                <option value="USD" ${account.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
+                                <option value="GBP" ${account.currency === 'GBP' ? 'selected' : ''}>GBP (£)</option>
+                                <option value="JPY" ${account.currency === 'JPY' ? 'selected' : ''}>JPY (¥)</option>
+                                <option value="CHF" ${account.currency === 'CHF' ? 'selected' : ''}>CHF</option>
+                                <option value="Other" ${account.currency === 'Other' ? 'selected' : ''}>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Opening Balance</label>
+                            <input type="number" id="accountBalance" value="${account.opening_balance || 0}" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="accountNotes">${account.notes || ''}</textarea>
+                        </div>
+                    </form>
+                `;
+
+                modalFooter.innerHTML = `
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="app.archiveAccount('${accountId}')">Archive</button>
+                    <button class="btn btn-primary" onclick="app.saveAccount()">Update Account</button>
+                `;
+
+                document.getElementById('modal').classList.add('active');
+            },
+
+            saveAccount() {
+                const name = document.getElementById('accountName').value;
+                const owner = document.getElementById('accountOwner').value;
+                const type = document.getElementById('accountType').value;
+                const currency = document.getElementById('accountCurrency').value;
+                const balance = parseFloat(document.getElementById('accountBalance').value) || 0;
+                const notes = document.getElementById('accountNotes').value;
+
+                if (!name || !owner || !type || !currency) {
+                    this.showError('Please fill in all required fields');
+                    return;
+                }
+
+                const accountData = { name, owner, type, currency, opening_balance: balance, notes };
+
+                if (this.editingAccount) {
+                    google.script.run.withSuccessHandler((result) => {
+                        closeModal();
+                        this.showSuccess('Account updated successfully');
+                        this.loadState();
+                    }).withFailureHandler((error) => {
+                        this.showError('Failed to update account: ' + error);
+                    }).API_updateAccount(this.editingAccount.id, accountData);
+                } else {
+                    google.script.run.withSuccessHandler((result) => {
+                        closeModal();
+                        this.showSuccess('Account created successfully');
+                        this.loadState();
+                    }).withFailureHandler((error) => {
+                        this.showError('Failed to create account: ' + error);
+                    }).API_createAccount(accountData);
+                }
+            },
+
+            archiveAccount(accountId) {
+                if (confirm('Archive this account? This cannot be undone.')) {
+                    google.script.run.withSuccessHandler((result) => {
+                        closeModal();
+                        this.showSuccess('Account archived');
+                        this.loadState();
+                    }).withFailureHandler((error) => {
+                        this.showError('Failed to archive account: ' + error);
+                    }).API_archiveAccount(accountId);
+                }
+            },
+
+            deleteAccount(accountId) {
+                if (confirm('Permanently delete this account? This cannot be undone.')) {
+                    google.script.run.withSuccessHandler((result) => {
+                        this.showSuccess('Account deleted');
+                        this.loadState();
+                    }).withFailureHandler((error) => {
+                        this.showError('Failed to delete account: ' + error);
+                    }).API_deleteAccount(accountId);
+                }
+            },
+
+            attachEventListeners() {
+                // Placeholder for additional event listeners
+            },
+
+            showSuccess(message) {
+                // Could be enhanced with toast notification
                 alert(message);
+            },
+
+            showError(message) {
+                // Could be enhanced with toast notification
+                alert('Error: ' + message);
             }
         };
 
-        // Close modal
         function closeModal() {
             document.getElementById('modal').classList.remove('active');
         }
 
-        // Initialize app on load
+        // Initialize app when page loads
         window.addEventListener('load', () => {
             app.init();
         });

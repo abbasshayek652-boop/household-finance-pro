@@ -1,12 +1,9 @@
 /**
- * Configuration and Constants
- * Central location for all application constants and configuration
+ * Config.gs
+ * Shared app configuration and constants.
  */
 
 const CONFIG = {
-  SPREADSHEET_NAME: 'Household Finance Pro',
-  TIMEZONE: 'Asia/Beirut',
-  
   SHEETS: {
     ACCOUNTS: 'Accounts',
     CATEGORIES: 'Categories',
@@ -20,7 +17,6 @@ const CONFIG = {
     AUDIT_LOG: 'AuditLog',
     META: 'Meta'
   },
-  
   HEADERS: {
     ACCOUNTS: ['id', 'name', 'owner', 'currency', 'type', 'opening_balance', 'notes', 'archived', 'created_at', 'updated_at'],
     CATEGORIES: ['id', 'name', 'type', 'parent_id', 'notes', 'archived', 'created_at', 'updated_at'],
@@ -34,7 +30,6 @@ const CONFIG = {
     AUDIT_LOG: ['id', 'action', 'entity_type', 'entity_id', 'details', 'created_at'],
     META: ['key', 'value']
   },
-  
   ACCOUNT_TYPES: ['Cash', 'Bank', 'Savings', 'Investment', 'Other Asset', 'Liability'],
   CATEGORY_TYPES: ['Income', 'Expense', 'Savings'],
   TRANSACTION_TYPES: ['Income', 'Expense', 'Savings'],
@@ -42,52 +37,9 @@ const CONFIG = {
   ROOM_STATUS: ['Available', 'Occupied', 'Maintenance', 'Blocked'],
   BOOKING_STATUS: ['Confirmed', 'Pending', 'Cancelled', 'Completed'],
   CURRENCIES: ['EUR', 'USD', 'LBP'],
-  
-  CACHE: {
-    SNAPSHOT_TTL: 300, // 5 minutes
-    EXCHANGE_RATES_TTL: 3600, // 1 hour
-    METADATA_TTL: 3600
-  },
-  
-  AUDIT_ACTIONS: {
-    CREATE: 'CREATE',
-    UPDATE: 'UPDATE',
-    ARCHIVE: 'ARCHIVE',
-    DELETE: 'DELETE',
-    SETUP: 'SETUP',
-    REPAIR: 'REPAIR'
-  },
-  
   DEFAULT_EXCHANGE_RATES: {
-    'EUR': 1.0,
-    'USD': 1.10,
-    'LBP': null // User must configure
-  },
-  
-  CACHE_KEYS: {
-    FINANCIAL_SNAPSHOT: 'financial_snapshot',
-    RENTAL_SNAPSHOT: 'rental_snapshot',
-    EXCHANGE_RATES: 'exchange_rates',
-    METADATA: 'metadata'
+    EUR: 1.0,
+    USD: 1.10,
+    LBP: null
   }
 };
-
-/**
- * Get the active Google Sheet
- */
-function getSheet_(sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName(sheetName);
-}
-
-/**
- * Get or create a sheet
- */
-function getOrCreateSheet_(sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  }
-  return sheet;
-}

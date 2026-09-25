@@ -1,787 +1,324 @@
 /**
- * Finance Module
- * Core financial operations and calculations
+ * Finance.gs
+ * Household finance data and CRUD operations.
  */
 
-/**
- * Get financial state for dashboard
- * @returns {Object} Financial state
- */
 function getFinancialState_() {
   const snapshot = loadDatabaseSnapshot_();
-  
-  const accountsActive = snapshot.accounts.filter(a => !a.archived);
-  const categoriesActive = snapshot.categories.filter(c => !c.archived);
-  const transactionsAll = snapshot.transactions || [];
-  const budgetsActive = snapshot.budgets.filter(b => !b.archived);
-  const savingsActive = snapshot.savingsGoals.filter(g => !g.archived);
-  const recurringActive = snapshot.recurring.filter(r => !r.archived);
-  
   return {
-    accounts: accountsActive,
-    categories: categoriesActive,
-    transactions: transactionsAll,
-    budgets: budgetsActive,
-    savingsGoals: savingsActive,
-    recurring: recurringActive,
-    metadata: snapshot.metadata
+    accounts: (snapshot.accounts || []).filter((a) => !a.archived),
+    categories: (snapshot.categories || []).filter((c) => !c.archived),
+    transactions: snapshot.transactions || [],
+    budgets: (snapshot.budgets || []).filter((b) => !b.archived),
+    savingsGoals: (snapshot.savingsGoals || []).filter((g) => !g.archived),
+    recurring: (snapshot.recurring || []).filter((r) => !r.archived),
+    metadata: snapshot.metadata || {}
   };
 }
 
-/**
- * Calculate dashboard metrics
- * @param {Array} transactions - Array of transactions
- * @param {Array} accounts - Array of accounts
- * @param {Object} metadata - Metadata object with exchange rates
- * @returns {Object} Dashboard metrics
- */
 function calculateDashboardMetrics_(transactions, accounts, metadata) {
-  if (!transactions) transactions = [];
-  if (!accounts) accounts = [];
-  
-  const baseCurrency = metadata.base_currency || 'EUR';
-  
-  let totalIncome = 0;
-  let totalExpenses = 0;
-  let totalSavings = 0;
-  
-  // Separate transactions by type
-  transactions.forEach(t => {
-    const amount = parseFloat(t.amount) || 0;
-    
-    // Only include if currency matches or can be converted
-    // For now, accumulate by type
-    if (t.type === 'Income') {
-      totalIncome += amount;
-    } else if (t.type === 'Expense') {
-      totalExpenses += amount;
-    } else if (t.type === 'Savings') {
-      totalSavings += amount;
-    }
-  });
-  
+  const txns = transactions || [];
+  const totalIncome = txns.filter((t) => t.type === 'Income').reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+  const totalExpenses = txns.filter((t) => t.type === 'Expense').reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+  const totalSavings = txns.filter((t) => t.type === 'Savings').reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
   const netBalance = totalIncome - totalExpenses;
   const savingsRate = totalIncome > 0 ? (totalSavings / totalIncome) * 100 : 0;
-  
-  // Calculate account balances
-  const accountBalances = calculateAccountBalances_(accounts, transactions);
-  
-  // Get recent transactions
-  const recentTransactions = transactions
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    .slice(0, 10);
-  
+
   return {
     totalIncome: totalIncome,
     totalExpenses: totalExpenses,
     netBalance: netBalance,
     totalSavings: totalSavings,
     savingsRate: savingsRate,
-    baseCurrency: baseCurrency,
-    accountBalances: accountBalances,
-    recentTransactions: recentTransactions,
-    transactionCount: transactions.length
+    baseCurrency: metadata.base_currency || 'EUR',
+    transactionCount: txns.length,
+    recentTransactions: txns.slice(-10)
   };
 }
 
-/**
- * Calculate account balances
- * @param {Array} accounts - Array of accounts
- * @param {Array} transactions - Array of transactions
- * @returns {Array} Accounts with calculated balances
- */
 function calculateAccountBalances_(accounts, transactions) {
-  if (!accounts) return [];
-  if (!transactions) transactions = [];
-  
-  return accounts.map(account => {
-    const openingBalance = parseFloat(account.opening_balance) || 0;
-    
-    // Calculate transactions for this account
-    const accountTransactions = transactions.filter(t => t.account_id === account.id);
-    
-    let balance = openingBalance;
-    accountTransactions.forEach(t => {
-      const amount = parseFloat(t.amount) || 0;
-      
-      if (t.type === 'Income' || t.type === 'Savings') {
-        balance += amount;
-      } else if (t.type === 'Expense') {
-        balance -= amount;
-      }
+  return (accounts || []).map((account) => {
+    const opening = parseFloat(account.opening_balance) || 0;
+    const accountTxns = (transactions || []).filter((t) => t.account_id === account.id);
+    let balance = opening;
+    accountTxns.forEach((txn) => {
+      const amount = parseFloat(txn.amount) || 0;
+      if (txn.type === 'Income' || txn.type === 'Savings') balance += amount;
+      else if (txn.type === 'Expense') balance -= amount;
     });
-    
-    return {
-      ...account,
-      balance: balance,
-      transactionCount: accountTransactions.length
-    };
+    return Object.assign({}, account, { balance: balance, transactionCount: accountTxns.length });
   });
 }
 
-/**
- * Create a new account
- * @param {Object} account - Account data
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function createAccount_(account) {
   const validation = validateAccount_(account);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = addRecord_('Accounts', account, ['id', 'name', 'owner', 'currency', 'type', 'opening_balance', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('CREATE', 'Account', result.id, { name: result.name });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('account_write', 5000);
-  try {
-    const newAccount = addRecord_(CONFIG.SHEETS.ACCOUNTS, account, CONFIG.HEADERS.ACCOUNTS);
-    
-    logAudit_('CREATE', 'Account', newAccount.id, { name: newAccount.name });
-    invalidateFinancialCache_();
-    
-    return { success: true, data: newAccount };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Failed to create account'] };
 }
 
-/**
- * Update an account
- * @param {string} accountId - Account ID
- * @param {Object} updates - Fields to update
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function updateAccount_(accountId, updates) {
   const validation = validateAccount_(updates);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = updateRecord_('Accounts', accountId, updates, ['id', 'name', 'owner', 'currency', 'type', 'opening_balance', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('UPDATE', 'Account', accountId, { changes: updates });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('account_write', 5000);
-  try {
-    const updated = updateRecord_(CONFIG.SHEETS.ACCOUNTS, accountId, updates, CONFIG.HEADERS.ACCOUNTS);
-    
-    if (updated) {
-      logAudit_('UPDATE', 'Account', accountId, { changes: updates });
-      invalidateFinancialCache_();
-      return { success: true, data: updated };
-    }
-    
-    return { success: false, errors: ['Account not found'] };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Account not found'] };
 }
 
-/**
- * Archive an account
- * @param {string} accountId - Account ID
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function archiveAccount_(accountId) {
-  const lock = acquireLock_('account_write', 5000);
-  try {
-    const snapshot = loadDatabaseSnapshot_();
-    const references = getTransactionsForAccount_(accountId, snapshot.transactions);
-    
-    if (references.length > 0) {
-      return {
-        success: false,
-        errors: ['Account has ' + references.length + ' transaction(s). Archive historical transactions first.']
-      };
-    }
-    
-    const archived = archiveRecord_(CONFIG.SHEETS.ACCOUNTS, accountId, CONFIG.HEADERS.ACCOUNTS);
-    
-    if (archived) {
-      logAudit_('ARCHIVE', 'Account', accountId, {});
-      invalidateFinancialCache_();
-      return { success: true, data: archived };
-    }
-    
-    return { success: false, errors: ['Account not found'] };
-  } finally {
-    releaseLock_(lock);
+  const result = archiveRecord_('Accounts', accountId, ['id', 'name', 'owner', 'currency', 'type', 'opening_balance', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('ARCHIVE', 'Account', accountId, {});
+    return { success: true, data: result };
   }
+  return { success: false, errors: ['Account not found'] };
 }
 
-/**
- * Delete an account permanently
- * @param {string} accountId - Account ID
- * @returns {Object} {success: boolean, errors: Array}
- */
 function deleteAccount_(accountId) {
-  const lock = acquireLock_('account_write', 5000);
-  try {
-    const snapshot = loadDatabaseSnapshot_();
-    const references = getTransactionsForAccount_(accountId, snapshot.transactions);
-    
-    if (references.length > 0) {
-      return {
-        success: false,
-        errors: ['Cannot delete account with ' + references.length + ' transaction(s).']
-      };
-    }
-    
-    if (deleteRecord_(CONFIG.SHEETS.ACCOUNTS, accountId)) {
-      logAudit_('DELETE', 'Account', accountId, {});
-      invalidateFinancialCache_();
-      return { success: true };
-    }
-    
-    return { success: false, errors: ['Account not found'] };
-  } finally {
-    releaseLock_(lock);
+  if (deleteRecord_('Accounts', accountId)) {
+    logAudit_('DELETE', 'Account', accountId, {});
+    return { success: true };
   }
+  return { success: false, errors: ['Account not found'] };
 }
 
-/**
- * Create a new category
- * @param {Object} category - Category data
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function createCategory_(category) {
   const validation = validateCategory_(category);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = addRecord_('Categories', category, ['id', 'name', 'type', 'parent_id', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('CREATE', 'Category', result.id, { name: result.name });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('category_write', 5000);
-  try {
-    const newCategory = addRecord_(CONFIG.SHEETS.CATEGORIES, category, CONFIG.HEADERS.CATEGORIES);
-    
-    logAudit_('CREATE', 'Category', newCategory.id, { name: newCategory.name });
-    invalidateFinancialCache_();
-    
-    return { success: true, data: newCategory };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Failed to create category'] };
 }
 
-/**
- * Update a category
- * @param {string} categoryId - Category ID
- * @param {Object} updates - Fields to update
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function updateCategory_(categoryId, updates) {
   const validation = validateCategory_(updates);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = updateRecord_('Categories', categoryId, updates, ['id', 'name', 'type', 'parent_id', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('UPDATE', 'Category', categoryId, { changes: updates });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('category_write', 5000);
-  try {
-    const updated = updateRecord_(CONFIG.SHEETS.CATEGORIES, categoryId, updates, CONFIG.HEADERS.CATEGORIES);
-    
-    if (updated) {
-      logAudit_('UPDATE', 'Category', categoryId, { changes: updates });
-      invalidateFinancialCache_();
-      return { success: true, data: updated };
-    }
-    
-    return { success: false, errors: ['Category not found'] };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Category not found'] };
 }
 
-/**
- * Archive a category
- * @param {string} categoryId - Category ID
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function archiveCategory_(categoryId) {
-  const lock = acquireLock_('category_write', 5000);
-  try {
-    const snapshot = loadDatabaseSnapshot_();
-    const transactionRefs = getTransactionsForCategory_(categoryId, snapshot.transactions);
-    const budgetRefs = getBudgetsForCategory_(categoryId, snapshot.budgets);
-    const recurringRefs = getRecurringForCategory_(categoryId, snapshot.recurring);
-    
-    const totalRefs = transactionRefs.length + budgetRefs.length + recurringRefs.length;
-    
-    if (totalRefs > 0) {
-      return {
-        success: false,
-        errors: ['Category has references (' + totalRefs + '). Archive related items first.']
-      };
-    }
-    
-    const archived = archiveRecord_(CONFIG.SHEETS.CATEGORIES, categoryId, CONFIG.HEADERS.CATEGORIES);
-    
-    if (archived) {
-      logAudit_('ARCHIVE', 'Category', categoryId, {});
-      invalidateFinancialCache_();
-      return { success: true, data: archived };
-    }
-    
-    return { success: false, errors: ['Category not found'] };
-  } finally {
-    releaseLock_(lock);
+  const result = archiveRecord_('Categories', categoryId, ['id', 'name', 'type', 'parent_id', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('ARCHIVE', 'Category', categoryId, {});
+    return { success: true, data: result };
   }
+  return { success: false, errors: ['Category not found'] };
 }
 
-/**
- * Delete a category permanently
- * @param {string} categoryId - Category ID
- * @returns {Object} {success: boolean, errors: Array}
- */
 function deleteCategory_(categoryId) {
-  const lock = acquireLock_('category_write', 5000);
-  try {
-    const snapshot = loadDatabaseSnapshot_();
-    const transactionRefs = getTransactionsForCategory_(categoryId, snapshot.transactions);
-    const budgetRefs = getBudgetsForCategory_(categoryId, snapshot.budgets);
-    const recurringRefs = getRecurringForCategory_(categoryId, snapshot.recurring);
-    
-    const totalRefs = transactionRefs.length + budgetRefs.length + recurringRefs.length;
-    
-    if (totalRefs > 0) {
-      return {
-        success: false,
-        errors: ['Cannot delete category with ' + totalRefs + ' reference(s).']
-      };
-    }
-    
-    if (deleteRecord_(CONFIG.SHEETS.CATEGORIES, categoryId)) {
-      logAudit_('DELETE', 'Category', categoryId, {});
-      invalidateFinancialCache_();
-      return { success: true };
-    }
-    
-    return { success: false, errors: ['Category not found'] };
-  } finally {
-    releaseLock_(lock);
+  if (deleteRecord_('Categories', categoryId)) {
+    logAudit_('DELETE', 'Category', categoryId, {});
+    return { success: true };
   }
+  return { success: false, errors: ['Category not found'] };
 }
 
-/**
- * Create a new transaction
- * @param {Object} transaction - Transaction data
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function createTransaction_(transaction) {
   const validation = validateTransaction_(transaction);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = addRecord_('Transactions', transaction, ['id', 'date', 'type', 'entity', 'category_id', 'account_id', 'amount', 'currency', 'notes', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('CREATE', 'Transaction', result.id, { type: result.type, amount: result.amount });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('transaction_write', 5000);
-  try {
-    const newTransaction = addRecord_(CONFIG.SHEETS.TRANSACTIONS, transaction, CONFIG.HEADERS.TRANSACTIONS);
-    
-    logAudit_('CREATE', 'Transaction', newTransaction.id, { 
-      type: newTransaction.type,
-      amount: newTransaction.amount,
-      entity: newTransaction.entity
-    });
-    invalidateFinancialCache_();
-    
-    return { success: true, data: newTransaction };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Failed to create transaction'] };
 }
 
-/**
- * Update a transaction
- * @param {string} transactionId - Transaction ID
- * @param {Object} updates - Fields to update
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function updateTransaction_(transactionId, updates) {
   const validation = validateTransaction_(updates);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = updateRecord_('Transactions', transactionId, updates, ['id', 'date', 'type', 'entity', 'category_id', 'account_id', 'amount', 'currency', 'notes', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('UPDATE', 'Transaction', transactionId, { changes: updates });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('transaction_write', 5000);
-  try {
-    const updated = updateRecord_(CONFIG.SHEETS.TRANSACTIONS, transactionId, updates, CONFIG.HEADERS.TRANSACTIONS);
-    
-    if (updated) {
-      logAudit_('UPDATE', 'Transaction', transactionId, { changes: updates });
-      invalidateFinancialCache_();
-      return { success: true, data: updated };
-    }
-    
-    return { success: false, errors: ['Transaction not found'] };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Transaction not found'] };
 }
 
-/**
- * Delete a transaction
- * @param {string} transactionId - Transaction ID
- * @returns {Object} {success: boolean, errors: Array}
- */
 function deleteTransaction_(transactionId) {
-  const lock = acquireLock_('transaction_write', 5000);
-  try {
-    if (deleteRecord_(CONFIG.SHEETS.TRANSACTIONS, transactionId)) {
-      logAudit_('DELETE', 'Transaction', transactionId, {});
-      invalidateFinancialCache_();
-      return { success: true };
-    }
-    
-    return { success: false, errors: ['Transaction not found'] };
-  } finally {
-    releaseLock_(lock);
+  if (deleteRecord_('Transactions', transactionId)) {
+    logAudit_('DELETE', 'Transaction', transactionId, {});
+    return { success: true };
   }
+  return { success: false, errors: ['Transaction not found'] };
 }
 
-/**
- * Create a new budget
- * @param {Object} budget - Budget data
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function createBudget_(budget) {
   const validation = validateBudget_(budget);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = addRecord_('Budgets', budget, ['id', 'category_id', 'month', 'amount', 'currency', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('CREATE', 'Budget', result.id, { category_id: result.category_id, month: result.month });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('budget_write', 5000);
-  try {
-    const newBudget = addRecord_(CONFIG.SHEETS.BUDGETS, budget, CONFIG.HEADERS.BUDGETS);
-    
-    logAudit_('CREATE', 'Budget', newBudget.id, { 
-      category_id: newBudget.category_id,
-      month: newBudget.month
-    });
-    invalidateFinancialCache_();
-    
-    return { success: true, data: newBudget };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Failed to create budget'] };
 }
 
-/**
- * Update a budget
- * @param {string} budgetId - Budget ID
- * @param {Object} updates - Fields to update
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function updateBudget_(budgetId, updates) {
   const validation = validateBudget_(updates);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = updateRecord_('Budgets', budgetId, updates, ['id', 'category_id', 'month', 'amount', 'currency', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('UPDATE', 'Budget', budgetId, { changes: updates });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('budget_write', 5000);
-  try {
-    const updated = updateRecord_(CONFIG.SHEETS.BUDGETS, budgetId, updates, CONFIG.HEADERS.BUDGETS);
-    
-    if (updated) {
-      logAudit_('UPDATE', 'Budget', budgetId, { changes: updates });
-      invalidateFinancialCache_();
-      return { success: true, data: updated };
-    }
-    
-    return { success: false, errors: ['Budget not found'] };
-  } finally {
-    releaseLock_(lock);
-  }
+  return { success: false, errors: ['Budget not found'] };
 }
 
-/**
- * Archive a budget
- * @param {string} budgetId - Budget ID
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function archiveBudget_(budgetId) {
-  const lock = acquireLock_('budget_write', 5000);
-  try {
-    const archived = archiveRecord_(CONFIG.SHEETS.BUDGETS, budgetId, CONFIG.HEADERS.BUDGETS);
-    
-    if (archived) {
-      logAudit_('ARCHIVE', 'Budget', budgetId, {});
-      invalidateFinancialCache_();
-      return { success: true, data: archived };
-    }
-    
-    return { success: false, errors: ['Budget not found'] };
-  } finally {
-    releaseLock_(lock);
+  const result = archiveRecord_('Budgets', budgetId, ['id', 'category_id', 'month', 'amount', 'currency', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('ARCHIVE', 'Budget', budgetId, {});
+    return { success: true, data: result };
   }
+  return { success: false, errors: ['Budget not found'] };
 }
 
-/**
- * Delete a budget
- * @param {string} budgetId - Budget ID
- * @returns {Object} {success: boolean, errors: Array}
- */
 function deleteBudget_(budgetId) {
-  const lock = acquireLock_('budget_write', 5000);
-  try {
-    if (deleteRecord_(CONFIG.SHEETS.BUDGETS, budgetId)) {
-      logAudit_('DELETE', 'Budget', budgetId, {});
-      invalidateFinancialCache_();
-      return { success: true };
-    }
-    
-    return { success: false, errors: ['Budget not found'] };
-  } finally {
-    releaseLock_(lock);
+  if (deleteRecord_('Budgets', budgetId)) {
+    logAudit_('DELETE', 'Budget', budgetId, {});
+    return { success: true };
   }
+  return { success: false, errors: ['Budget not found'] };
 }
 
-/**
- * Create a new savings goal
- * @param {Object} goal - Savings goal data
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function createSavingsGoal_(goal) {
   const validation = validateSavingsGoal_(goal);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = addRecord_('SavingsGoals', goal, ['id', 'name', 'target_amount', 'current_amount', 'currency', 'deadline', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('CREATE', 'SavingsGoal', result.id, { name: result.name });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('goal_write', 5000);
-  try {
-    const newGoal = addRecord_(CONFIG.SHEETS.SAVINGS_GOALS, goal, CONFIG.HEADERS.SAVINGS_GOALS);
-    
-    logAudit_('CREATE', 'SavingsGoal', newGoal.id, { name: newGoal.name });
-    invalidateFinancialCache_();
-    
-    return { success: true, data: newGoal };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Failed to create savings goal'] };
 }
 
-/**
- * Update a savings goal
- * @param {string} goalId - Goal ID
- * @param {Object} updates - Fields to update
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function updateSavingsGoal_(goalId, updates) {
   const validation = validateSavingsGoal_(updates);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = updateRecord_('SavingsGoals', goalId, updates, ['id', 'name', 'target_amount', 'current_amount', 'currency', 'deadline', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('UPDATE', 'SavingsGoal', goalId, { changes: updates });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('goal_write', 5000);
-  try {
-    const updated = updateRecord_(CONFIG.SHEETS.SAVINGS_GOALS, goalId, updates, CONFIG.HEADERS.SAVINGS_GOALS);
-    
-    if (updated) {
-      logAudit_('UPDATE', 'SavingsGoal', goalId, { changes: updates });
-      invalidateFinancialCache_();
-      return { success: true, data: updated };
-    }
-    
-    return { success: false, errors: ['Savings goal not found'] };
-  } finally {
-    releaseLock_(lock);
-  }
+  return { success: false, errors: ['Savings goal not found'] };
 }
 
-/**
- * Archive a savings goal
- * @param {string} goalId - Goal ID
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function archiveSavingsGoal_(goalId) {
-  const lock = acquireLock_('goal_write', 5000);
-  try {
-    const archived = archiveRecord_(CONFIG.SHEETS.SAVINGS_GOALS, goalId, CONFIG.HEADERS.SAVINGS_GOALS);
-    
-    if (archived) {
-      logAudit_('ARCHIVE', 'SavingsGoal', goalId, {});
-      invalidateFinancialCache_();
-      return { success: true, data: archived };
-    }
-    
-    return { success: false, errors: ['Savings goal not found'] };
-  } finally {
-    releaseLock_(lock);
+  const result = archiveRecord_('SavingsGoals', goalId, ['id', 'name', 'target_amount', 'current_amount', 'currency', 'deadline', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('ARCHIVE', 'SavingsGoal', goalId, {});
+    return { success: true, data: result };
   }
+  return { success: false, errors: ['Savings goal not found'] };
 }
 
-/**
- * Delete a savings goal
- * @param {string} goalId - Goal ID
- * @returns {Object} {success: boolean, errors: Array}
- */
 function deleteSavingsGoal_(goalId) {
-  const lock = acquireLock_('goal_write', 5000);
-  try {
-    if (deleteRecord_(CONFIG.SHEETS.SAVINGS_GOALS, goalId)) {
-      logAudit_('DELETE', 'SavingsGoal', goalId, {});
-      invalidateFinancialCache_();
-      return { success: true };
-    }
-    
-    return { success: false, errors: ['Savings goal not found'] };
-  } finally {
-    releaseLock_(lock);
+  if (deleteRecord_('SavingsGoals', goalId)) {
+    logAudit_('DELETE', 'SavingsGoal', goalId, {});
+    return { success: true };
   }
+  return { success: false, errors: ['Savings goal not found'] };
 }
 
-/**
- * Create a new recurring transaction
- * @param {Object} recurring - Recurring transaction data
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function createRecurring_(recurring) {
   const validation = validateRecurring_(recurring);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = addRecord_('Recurring', recurring, ['id', 'name', 'type', 'entity', 'account_id', 'category_id', 'amount', 'currency', 'frequency', 'next_run_date', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('CREATE', 'Recurring', result.id, { name: result.name });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('recurring_write', 5000);
-  try {
-    const newRecurring = addRecord_(CONFIG.SHEETS.RECURRING, recurring, CONFIG.HEADERS.RECURRING);
-    
-    logAudit_('CREATE', 'Recurring', newRecurring.id, { name: newRecurring.name });
-    invalidateFinancialCache_();
-    
-    return { success: true, data: newRecurring };
-  } finally {
-    releaseLock_(lock);
-  }
+
+  return { success: false, errors: ['Failed to create recurring item'] };
 }
 
-/**
- * Update a recurring transaction
- * @param {string} recurringId - Recurring ID
- * @param {Object} updates - Fields to update
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function updateRecurring_(recurringId, updates) {
   const validation = validateRecurring_(updates);
-  if (!validation.valid) {
-    return { success: false, errors: validation.errors };
+  if (!validation.valid) return { success: false, errors: validation.errors };
+
+  const result = updateRecord_('Recurring', recurringId, updates, ['id', 'name', 'type', 'entity', 'account_id', 'category_id', 'amount', 'currency', 'frequency', 'next_run_date', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('UPDATE', 'Recurring', recurringId, { changes: updates });
+    return { success: true, data: result };
   }
-  
-  const lock = acquireLock_('recurring_write', 5000);
-  try {
-    const updated = updateRecord_(CONFIG.SHEETS.RECURRING, recurringId, updates, CONFIG.HEADERS.RECURRING);
-    
-    if (updated) {
-      logAudit_('UPDATE', 'Recurring', recurringId, { changes: updates });
-      invalidateFinancialCache_();
-      return { success: true, data: updated };
-    }
-    
-    return { success: false, errors: ['Recurring transaction not found'] };
-  } finally {
-    releaseLock_(lock);
-  }
+  return { success: false, errors: ['Recurring item not found'] };
 }
 
-/**
- * Archive a recurring transaction
- * @param {string} recurringId - Recurring ID
- * @returns {Object} {success: boolean, data: Object, errors: Array}
- */
 function archiveRecurring_(recurringId) {
-  const lock = acquireLock_('recurring_write', 5000);
-  try {
-    const archived = archiveRecord_(CONFIG.SHEETS.RECURRING, recurringId, CONFIG.HEADERS.RECURRING);
-    
-    if (archived) {
-      logAudit_('ARCHIVE', 'Recurring', recurringId, {});
-      invalidateFinancialCache_();
-      return { success: true, data: archived };
-    }
-    
-    return { success: false, errors: ['Recurring transaction not found'] };
-  } finally {
-    releaseLock_(lock);
+  const result = archiveRecord_('Recurring', recurringId, ['id', 'name', 'type', 'entity', 'account_id', 'category_id', 'amount', 'currency', 'frequency', 'next_run_date', 'notes', 'archived', 'created_at', 'updated_at']);
+  if (result) {
+    logAudit_('ARCHIVE', 'Recurring', recurringId, {});
+    return { success: true, data: result };
   }
+  return { success: false, errors: ['Recurring item not found'] };
 }
 
-/**
- * Delete a recurring transaction
- * @param {string} recurringId - Recurring ID
- * @returns {Object} {success: boolean, errors: Array}
- */
 function deleteRecurring_(recurringId) {
-  const lock = acquireLock_('recurring_write', 5000);
-  try {
-    if (deleteRecord_(CONFIG.SHEETS.RECURRING, recurringId)) {
-      logAudit_('DELETE', 'Recurring', recurringId, {});
-      invalidateFinancialCache_();
-      return { success: true };
-    }
-    
-    return { success: false, errors: ['Recurring transaction not found'] };
-  } finally {
-    releaseLock_(lock);
+  if (deleteRecord_('Recurring', recurringId)) {
+    logAudit_('DELETE', 'Recurring', recurringId, {});
+    return { success: true };
   }
+  return { success: false, errors: ['Recurring item not found'] };
 }
 
-/**
- * Get exchange rate info
- * @returns {Object} Exchange rates data
- */
 function getExchangeRateInfo_() {
   const rates = {};
-  CONFIG.CURRENCIES.forEach(currency => {
-    const key = 'rate_' + currency;
-    const value = getMetaValue_(key);
-    rates[currency] = value ? parseFloat(value) : (CONFIG.DEFAULT_EXCHANGE_RATES[currency] || null);
+  ['EUR', 'USD', 'LBP'].forEach((currency) => {
+    rates[currency] = getMetaValue_('rate_' + currency) || CONFIG.DEFAULT_EXCHANGE_RATES[currency] || null;
   });
-  
   return {
     baseCurrency: getMetaValue_('base_currency') || 'EUR',
     rates: rates
   };
 }
 
-/**
- * Set exchange rate
- * @param {string} currency - Currency code
- * @param {number} rate - Exchange rate
- * @returns {Object} {success: boolean}
- */
 function setExchangeRate_(currency, rate) {
-  if (!CONFIG.CURRENCIES.includes(currency)) {
-    return { success: false, errors: ['Invalid currency'] };
-  }
-  
-  const rateNum = parseFloat(rate);
-  if (isNaN(rateNum) || rateNum <= 0) {
-    return { success: false, errors: ['Exchange rate must be a positive number'] };
-  }
-  
-  const lock = acquireLock_('rate_write', 5000);
-  try {
-    setMetaValue_('rate_' + currency, rateNum.toString());
-    getCache_().remove(CONFIG.CACHE_KEYS.EXCHANGE_RATES);
-    
-    logAudit_('UPDATE', 'ExchangeRate', currency, { rate: rateNum });
-    
-    return { success: true };
-  } finally {
-    releaseLock_(lock);
-  }
+  if (!['EUR', 'USD', 'LBP'].includes(currency)) return { success: false, errors: ['Invalid currency'] };
+  const numericRate = parseFloat(rate);
+  if (isNaN(numericRate) || numericRate <= 0) return { success: false, errors: ['Rate must be a positive number'] };
+  setMetaValue_('rate_' + currency, numericRate.toString());
+  logAudit_('UPDATE', 'ExchangeRate', currency, { rate: numericRate });
+  return { success: true };
 }
 
-/**
- * Set base currency
- * @param {string} currency - Currency code
- * @returns {Object} {success: boolean}
- */
 function setBaseCurrency_(currency) {
-  if (!CONFIG.CURRENCIES.includes(currency)) {
-    return { success: false, errors: ['Invalid currency'] };
-  }
-  
-  const lock = acquireLock_('rate_write', 5000);
-  try {
-    setMetaValue_('base_currency', currency);
-    invalidateFinancialCache_();
-    
-    logAudit_('UPDATE', 'BaseCurrency', currency, {});
-    
-    return { success: true };
-  } finally {
-    releaseLock_(lock);
-  }
+  if (!['EUR', 'USD', 'LBP'].includes(currency)) return { success: false, errors: ['Invalid currency'] };
+  setMetaValue_('base_currency', currency);
+  logAudit_('UPDATE', 'BaseCurrency', currency, {});
+  return { success: true };
 }

@@ -1,6 +1,6 @@
 /**
  * Code.gs
- * Google Apps Script entrypoint for Household Finance Pro
+ * Main entry point for the Household Finance Pro Google Apps Script app.
  */
 
 function doGet() {
